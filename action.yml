@@ -1,0 +1,108 @@
+name: 'Xcode Cloud Dispatcher'
+description: 'Triggers Apple Xcode Cloud builds for Flutter and Native iOS projects.'
+author: 'Your Name'
+
+inputs:
+  apple_key_id:
+    description: 'App Store Connect Key ID'
+    required: true
+  apple_issuer_id:
+    description: 'App Store Connect Issuer ID'
+    required: true
+  apple_private_key:
+    description: 'Content of the .p8 private key'
+    required: true
+  workflow_id:
+    description: 'The Xcode Cloud Workflow ID'
+    required: true
+  project_path:
+    description: 'Optional: Path to .xcodeproj (e.g. "ios/Runner.xcodeproj").'
+    required: false
+    default: ''
+  team_id:
+    description: 'Optional: App Store Connect Team ID for deep-linking'
+    required: false
+    default: ''
+  app_id:
+    description: 'Optional: App Store Connect App ID for deep-linking'
+    required: false
+    default: ''
+
+outputs:
+  build_number:
+    description: 'The Apple-assigned build number'
+    value: ${{ steps.xcode_cloud.outputs.apple_build_number }}
+  build_url:
+    description: 'The deep-link to the build summary'
+    value: ${{ steps.xcode_cloud.outputs.build_url }}
+  marketing_version:
+    description: 'The auto-detected marketing version'
+    value: ${{ steps.meta.outputs.marketing_version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Determine Marketing Version'
+      id: 'meta'
+      shell: bash
+      run: |
+        # 1. Resolve Project Path
+        PATH_TO_PROJECT="${{ inputs.project_path }}"
+        if [ -z "$PATH_TO_PROJECT" ]; then
+          PATH_TO_PROJECT=$(find . -maxdepth 2 -name "*.xcodeproj" -print -quit)
+        fi
+
+        # 2. Extract Version (Flutter Priority -> Native Fallback)
+        if [ -f "pubspec.yaml" ]; then
+          VERSION=$(grep 'version: ' pubspec.yaml | sed 's/version: //' | cut -d'+' -f1 | tr -d '[:space:]')
+        elif [ -n "$PATH_TO_PROJECT" ] && [ -f "$PATH_TO_PROJECT/project.pbxproj" ]; then
+          VERSION=$(grep -m 1 'MARKETING_VERSION' "$PATH_TO_PROJECT/project.pbxproj" | cut -d'=' -f2 | tr -d ';"[:space:]')
+        fi
+
+        echo "marketing_version=${VERSION:-}" >> "$GITHUB_OUTPUT"
+
+    - name: 'Generate JWT'
+      id: 'jwt'
+      shell: bash
+      run: |
+        pip install PyJWT cryptography --quiet
+        TOKEN=$(python3 ${{ github.action_path }}/gen_jwt.py)
+        echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+      env:
+        KEY_ID: ${{ inputs.apple_key_id }}
+        ISSUER_ID: ${{ inputs.apple_issuer_id }}
+        PRIVATE_KEY: ${{ inputs.apple_private_key }}
+
+    - name: 'API Dispatch'
+      id: 'xcode_cloud'
+      shell: bash
+      run: |
+        RESPONSE=$(curl -s -X POST "https://api.appstoreconnect.apple.com/v1/ciBuildRuns" \
+          -H "Authorization: Bearer ${{ steps.jwt.outputs.token }}" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "data": {
+              "type": "ciBuildRuns",
+              "relationships": {
+                "workflow": { "data": { "type": "ciWorkflows", "id": "${{ inputs.workflow_id }}" } }
+              }
+            }
+          }')
+
+        APPLE_BUILD=$(echo "$RESPONSE" | jq -r '.data.attributes.number // "null"')
+        BUILD_ID=$(echo "$RESPONSE" | jq -r '.data.id // "null"')
+        
+        if [[ "$APPLE_BUILD" == "null" ]]; then
+          echo "::error::Apple API Rejected Request"
+          echo "$RESPONSE"
+          exit 1
+        fi
+        
+        echo "apple_build_number=$APPLE_BUILD" >> "$GITHUB_OUTPUT"
+
+        # Build Summary URL Logic
+        if [[ -n "${{ inputs.team_id }}" && -n "${{ inputs.app_id }}" ]]; then
+          echo "build_url=https://appstoreconnect.apple.com/teams/${{ inputs.team_id }}/apps/${{ inputs.app_id }}/ci/builds/$BUILD_ID/summary" >> "$GITHUB_OUTPUT"
+        else
+          echo "build_url=https://appstoreconnect.apple.com/apps" >> "$GITHUB_OUTPUT"
+        fi
