@@ -36,7 +36,7 @@ jobs:
 
       - name: Trigger Xcode Cloud
         id: xcode
-        uses: your-username/xcode-cloud-dispatcher@v1
+        uses: your-username/xcode-cloud-dispatcher@v0.1
         with:
           apple_key_id: ${{ secrets.APPSTORE_KEY_ID }}
           apple_issuer_id: ${{ secrets.APPSTORE_ISSUER_ID }}
@@ -50,7 +50,7 @@ jobs:
         if: always()
         run: |
           VERSION="${{ steps.xcode.outputs.marketing_version }}"
-          BUILD="${{ steps.xcode.outputs.apple_build_number }}"
+          BUILD="${{ steps.xcode.outputs.build_number }}"
           URL="${{ steps.xcode.outputs.build_url }}"
           
           MSG="🚀 **Xcode Cloud Build Started**"
