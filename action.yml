@@ -77,7 +77,8 @@ runs:
       id: 'xcode_cloud'
       shell: bash
       run: |
-        RESPONSE=$(curl -s -X POST "https://api.appstoreconnect.apple.com/v1/ciBuildRuns" \
+        echo "::group::Xcode Cloud API Request"
+        RESPONSE=$(curl -s -i -X POST "https://api.appstoreconnect.apple.com/v1/ciBuildRuns" \
           -H "Authorization: Bearer ${{ steps.jwt.outputs.token }}" \
           -H "Content-Type: application/json" \
           -d '{
@@ -88,21 +89,32 @@ runs:
               }
             }
           }')
+        echo "::endgroup::"
 
-        APPLE_BUILD=$(echo "$RESPONSE" | jq -r '.data.attributes.number // "null"')
-        BUILD_ID=$(echo "$RESPONSE" | jq -r '.data.id // "null"')
+        # Separate Header and Body for debugging
+        HTTP_STATUS=$(echo "$RESPONSE" | grep HTTP | tail -1 | awk '{print $2}')
+        BODY=$(echo "$RESPONSE" | sed '1,/^\r$/d')
+
+        echo "HTTP Status: $HTTP_STATUS"
         
-        if [[ "$APPLE_BUILD" == "null" ]]; then
-          echo "::error::Apple API Rejected Request"
-          echo "$RESPONSE"
+        # Parse values
+        APPLE_BUILD=$(echo "$BODY" | jq -r '.data.attributes.number // "null"')
+        BUILD_ID=$(echo "$BODY" | jq -r '.data.id // "null"')
+
+        if [[ "$APPLE_BUILD" == "null" || "$HTTP_STATUS" -ne 201 ]]; then
+          echo "::error::Xcode Cloud Dispatch Failed!"
+          echo "Full API Response:"
+          echo "$BODY" | jq .
           exit 1
         fi
-        
+
+        echo "Successfully triggered Build #$APPLE_BUILD"
         echo "apple_build_number=$APPLE_BUILD" >> "$GITHUB_OUTPUT"
 
-        # Build Summary URL Logic
+        # URL Logic
         if [[ -n "${{ inputs.team_id }}" && -n "${{ inputs.app_id }}" ]]; then
-          echo "build_url=https://appstoreconnect.apple.com/teams/${{ inputs.team_id }}/apps/${{ inputs.app_id }}/ci/builds/$BUILD_ID/summary" >> "$GITHUB_OUTPUT"
+          URL="https://appstoreconnect.apple.com/teams/${{ inputs.team_id }}/apps/${{ inputs.app_id }}/ci/builds/$BUILD_ID/summary"
+          echo "build_url=$URL" >> "$GITHUB_OUTPUT"
         else
           echo "build_url=https://appstoreconnect.apple.com/apps" >> "$GITHUB_OUTPUT"
         fi
