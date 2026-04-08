@@ -105,9 +105,7 @@ runs:
 
           REFS_RESPONSE=$(curl -s \
             -H "$AUTH" \
-            "https://api.appstoreconnect.apple.com/v1/scmRepositories/${REPO_ID}/gitReferences")
-          echo "Available git references:"
-          echo "$REFS_RESPONSE" | jq -r '.data[] | "\(.attributes.kind) \(.attributes.name)"'
+            "https://api.appstoreconnect.apple.com/v1/scmRepositories/${REPO_ID}/gitReferences?sort=-name")
 
           GIT_REF_ID=$(echo "$REFS_RESPONSE" \
             | jq -r --arg name "${{ inputs.git_ref }}" '.data[] | select(.attributes.name == $name) | .id' | head -1)
