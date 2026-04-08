@@ -64,7 +64,7 @@ runs:
         if [ -f "pubspec.yaml" ]; then
           VERSION=$(grep '^version: ' pubspec.yaml | sed 's/^version: //' | cut -d'+' -f1 | tr -d '[:space:]')
         elif [ -n "${{ inputs.info_plist_path }}" ]; then
-          VERSION=$(plutil -extract CFBundleShortVersionString raw "${{ inputs.info_plist_path }}" 2>/dev/null)
+          VERSION=$(python3 -c "import plistlib; d=plistlib.load(open('${{ inputs.info_plist_path }}','rb')); print(d.get('CFBundleShortVersionString',''))" 2>/dev/null)
         elif [ -n "$PATH_TO_PROJECT" ] && [ -f "$PATH_TO_PROJECT/project.pbxproj" ]; then
           VERSION=$(grep 'MARKETING_VERSION' "$PATH_TO_PROJECT/project.pbxproj" \
             | grep -v '^\s*//' | tail -1 | cut -d'=' -f2 | tr -d ';"[:space:]')
