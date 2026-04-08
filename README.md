@@ -75,6 +75,7 @@ jobs:
 | `workflow_id` | The Xcode Cloud Workflow ID from App Store Connect | **Yes** | - |
 | `project_path` | Path to your `.xcodeproj` (e.g., `ios/Runner.xcodeproj`). Used to read `MARKETING_VERSION` from `project.pbxproj`. | No | Auto-detected |
 | `info_plist_path` | Path to your `Info.plist`. Use this for projects where `CFBundleShortVersionString` is a hardcoded string rather than `$(MARKETING_VERSION)`. | No | - |
+| `git_ref` | Branch or tag name to build (e.g., `main`, `v1.2.0`). If omitted, Xcode Cloud uses the default branch configured in the workflow. | No | - |
 | `team_id` | Your App Store Connect Team ID (UUID) | No | - |
 | `app_id` | Your Apple App ID (10-digit number) | No | - |
 

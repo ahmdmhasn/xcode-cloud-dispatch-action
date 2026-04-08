@@ -23,6 +23,10 @@ inputs:
     description: 'Optional: Path to Info.plist. Use for projects with a hardcoded CFBundleShortVersionString.'
     required: false
     default: ''
+  git_ref:
+    description: 'Optional: Branch or tag name to build (e.g. "main", "v1.2.0"). Defaults to the workflow default branch in Xcode Cloud.'
+    required: false
+    default: ''
   team_id:
     description: 'Optional: App Store Connect Team ID for deep-linking'
     required: false
@@ -84,18 +88,46 @@ runs:
       id: 'xcode_cloud'
       shell: bash
       run: |
+        AUTH="Authorization: Bearer ${{ steps.jwt.outputs.token }}"
+
+        # Resolve git reference ID if a branch/tag was specified
+        GIT_REF_RELATIONSHIP=""
+        if [ -n "${{ inputs.git_ref }}" ]; then
+          REPO_ID=$(curl -s \
+            -H "$AUTH" \
+            "https://api.appstoreconnect.apple.com/v1/ciWorkflows/${{ inputs.workflow_id }}/repository" \
+            | jq -r '.data.id // ""')
+
+          if [ -z "$REPO_ID" ]; then
+            echo "::error::Could not resolve repository for workflow ${{ inputs.workflow_id }}"
+            exit 1
+          fi
+
+          GIT_REF_ID=$(curl -s \
+            -H "$AUTH" \
+            "https://api.appstoreconnect.apple.com/v1/scmRepositories/${REPO_ID}/gitReferences?filter%5Bname%5D=${{ inputs.git_ref }}" \
+            | jq -r '.data[0].id // ""')
+
+          if [ -z "$GIT_REF_ID" ]; then
+            echo "::error::Could not find branch or tag '${{ inputs.git_ref }}' in repository"
+            exit 1
+          fi
+
+          GIT_REF_RELATIONSHIP=', "sourceBranchOrTag": { "data": { "type": "scmGitReferences", "id": "'"$GIT_REF_ID"'" } }'
+        fi
+
         echo "::group::Xcode Cloud API Request"
         RESPONSE=$(curl -s -i -X POST "https://api.appstoreconnect.apple.com/v1/ciBuildRuns" \
-          -H "Authorization: Bearer ${{ steps.jwt.outputs.token }}" \
+          -H "$AUTH" \
           -H "Content-Type: application/json" \
-          -d '{
-            "data": {
-              "type": "ciBuildRuns",
-              "relationships": {
-                "workflow": { "data": { "type": "ciWorkflows", "id": "${{ inputs.workflow_id }}" } }
+          -d "{
+            \"data\": {
+              \"type\": \"ciBuildRuns\",
+              \"relationships\": {
+                \"workflow\": { \"data\": { \"type\": \"ciWorkflows\", \"id\": \"${{ inputs.workflow_id }}\" } }${GIT_REF_RELATIONSHIP}
               }
             }
-          }')
+          }")
         echo "::endgroup::"
 
         # Separate Header and Body for debugging
