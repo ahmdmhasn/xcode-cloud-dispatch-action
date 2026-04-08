@@ -103,9 +103,10 @@ runs:
             exit 1
           fi
 
+          ENCODED_REF=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${{ inputs.git_ref }}', safe=''))")
           GIT_REF_ID=$(curl -s \
             -H "$AUTH" \
-            "https://api.appstoreconnect.apple.com/v1/scmRepositories/${REPO_ID}/gitReferences?filter%5Bname%5D=${{ inputs.git_ref }}" \
+            "https://api.appstoreconnect.apple.com/v1/scmRepositories/${REPO_ID}/gitReferences?filter%5Bname%5D=${ENCODED_REF}" \
             | jq -r '.data[0].id // ""')
 
           if [ -z "$GIT_REF_ID" ]; then
