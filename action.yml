@@ -103,16 +103,25 @@ runs:
             exit 1
           fi
 
-          ENCODED_BRANCH=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${{ inputs.branch }}', safe=''))")
-          GIT_REF_ID=$(curl -s \
-            -H "$AUTH" \
-            "https://api.appstoreconnect.apple.com/v1/scmRepositories/${REPO_ID}/gitReferences?filter%5Bkind%5D=BRANCH&filter%5Bname%5D=${ENCODED_BRANCH}" \
-            | jq -r '.data[0].id // ""')
+          echo "Searching for branch '${{ inputs.branch }}'..."
+          GIT_REF_ID=""
+          NEXT_URL="https://api.appstoreconnect.apple.com/v1/scmRepositories/${REPO_ID}/gitReferences?limit=200"
+          PAGE=1
+          while [ -n "$NEXT_URL" ] && [ -z "$GIT_REF_ID" ]; do
+            echo "Fetching git references page ${PAGE}..."
+            REFS_RESPONSE=$(curl -s -H "$AUTH" "$NEXT_URL")
+            GIT_REF_ID=$(echo "$REFS_RESPONSE" \
+              | jq -r --arg name "${{ inputs.branch }}" '.data[]? | select(.attributes.kind == "BRANCH" and .attributes.name == $name) | .id' \
+              | head -1)
+            NEXT_URL=$(echo "$REFS_RESPONSE" | jq -r '.links.next // ""')
+            PAGE=$((PAGE + 1))
+          done
 
           if [ -z "$GIT_REF_ID" ]; then
             echo "::error::Could not find branch '${{ inputs.branch }}' in repository"
             exit 1
           fi
+          echo "Found branch '${{ inputs.branch }}' with ID: ${GIT_REF_ID}"
 
           GIT_REF_RELATIONSHIP=', "sourceBranchOrTag": { "data": { "type": "scmGitReferences", "id": "'"$GIT_REF_ID"'" } }'
         fi
