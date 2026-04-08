@@ -19,6 +19,10 @@ inputs:
     description: 'Optional: Path to .xcodeproj (e.g. "ios/Runner.xcodeproj").'
     required: false
     default: ''
+  info_plist_path:
+    description: 'Optional: Path to Info.plist. Use for projects with a hardcoded CFBundleShortVersionString.'
+    required: false
+    default: ''
   team_id:
     description: 'Optional: App Store Connect Team ID for deep-linking'
     required: false
@@ -52,11 +56,14 @@ runs:
           PATH_TO_PROJECT=$(find . -maxdepth 2 -name "*.xcodeproj" -print -quit)
         fi
 
-        # 2. Extract Version (Flutter Priority -> Native Fallback)
+        # 2. Extract Version (Flutter -> Info.plist -> project.pbxproj)
         if [ -f "pubspec.yaml" ]; then
-          VERSION=$(grep 'version: ' pubspec.yaml | sed 's/version: //' | cut -d'+' -f1 | tr -d '[:space:]')
+          VERSION=$(grep '^version: ' pubspec.yaml | sed 's/^version: //' | cut -d'+' -f1 | tr -d '[:space:]')
+        elif [ -n "${{ inputs.info_plist_path }}" ]; then
+          VERSION=$(plutil -extract CFBundleShortVersionString raw "${{ inputs.info_plist_path }}" 2>/dev/null)
         elif [ -n "$PATH_TO_PROJECT" ] && [ -f "$PATH_TO_PROJECT/project.pbxproj" ]; then
-          VERSION=$(grep -m 1 'MARKETING_VERSION' "$PATH_TO_PROJECT/project.pbxproj" | cut -d'=' -f2 | tr -d ';"[:space:]')
+          VERSION=$(grep 'MARKETING_VERSION' "$PATH_TO_PROJECT/project.pbxproj" \
+            | grep -v '^\s*//' | tail -1 | cut -d'=' -f2 | tr -d ';"[:space:]')
         fi
 
         echo "marketing_version=${VERSION:-}" >> "$GITHUB_OUTPUT"

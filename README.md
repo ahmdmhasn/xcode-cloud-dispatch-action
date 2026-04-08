@@ -4,10 +4,10 @@ A lightweight, professional GitHub Action to manually trigger **Xcode Cloud** bu
 
 ## Features
 
-- 📱 **Universal Support:** Works out-of-the-box for Flutter (`pubspec.yaml`) and Native iOS (`MARKETING_VERSION`).
+- 📱 **Universal Support:** Works out-of-the-box for Flutter (`pubspec.yaml`) and Native iOS (`MARKETING_VERSION` or `CFBundleShortVersionString`).
 - 🔗 **Deep Linking:** Generates a direct URL to the specific build run (requires Team/App ID).
 - 🔑 **Automated Auth:** Handles ES256 JWT generation for the App Store Connect API.
-- 🛠 **Flexible:** Optionally provide a custom `project_path` or `marketing_version`.
+- 🛠 **Flexible:** Optionally provide a custom `project_path` or `info_plist_path` for version detection.
 - 💬 **PR Optimized:** Designed to update PR comments for a seamless developer experience.
 
 ---
@@ -73,7 +73,8 @@ jobs:
 | `apple_issuer_id` | App Store Connect Issuer ID (UUID) | **Yes** | - |
 | `apple_private_key` | The content of your `.p8` private key file | **Yes** | - |
 | `workflow_id` | The Xcode Cloud Workflow ID from App Store Connect | **Yes** | - |
-| `project_path` | Path to your `.xcodeproj` (e.g., `ios/Runner.xcodeproj`) | No | Auto-detected |
+| `project_path` | Path to your `.xcodeproj` (e.g., `ios/Runner.xcodeproj`). Used to read `MARKETING_VERSION` from `project.pbxproj`. | No | Auto-detected |
+| `info_plist_path` | Path to your `Info.plist`. Use this for projects where `CFBundleShortVersionString` is a hardcoded string rather than `$(MARKETING_VERSION)`. | No | - |
 | `team_id` | Your App Store Connect Team ID (UUID) | No | - |
 | `app_id` | Your Apple App ID (10-digit number) | No | - |
 
@@ -92,6 +93,10 @@ jobs:
 1. **Private Key:** When adding your `APPLE_PRIVATE_KEY` to GitHub Secrets, paste the entire content including `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----`.
 2. **Workflow ID:** You can find this in App Store Connect under the "Xcode Cloud" tab in your App settings.
 3. **Permissions:** Ensure your App Store Connect API Key has at least **Developer** or **App Manager** access.
+4. **Version Detection:** The action detects your version in this order:
+   - **Flutter:** reads `version` from `pubspec.yaml`
+   - **Native (modern):** reads `MARKETING_VERSION` from `project.pbxproj` — either auto-detected or via `project_path`
+   - **Native (legacy):** if your project hardcodes the version directly in `Info.plist`, provide `info_plist_path` and the action will read `CFBundleShortVersionString` via `plutil`
 
 ## License
 
