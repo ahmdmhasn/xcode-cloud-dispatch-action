@@ -36,7 +36,7 @@ jobs:
 
       - name: Trigger Xcode Cloud
         id: xcode
-        uses: your-username/xcode-cloud-dispatcher@v0.1
+        uses: ahmdmhasn/xcode-cloud-dispatch-action@v0.1
         with:
           apple_key_id: ${{ secrets.APPSTORE_KEY_ID }}
           apple_issuer_id: ${{ secrets.APPSTORE_ISSUER_ID }}
