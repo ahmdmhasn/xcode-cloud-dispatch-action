@@ -23,8 +23,8 @@ inputs:
     description: 'Optional: Path to Info.plist. Use for projects with a hardcoded CFBundleShortVersionString.'
     required: false
     default: ''
-  git_ref:
-    description: 'Optional: Branch or tag name to build (e.g. "main", "v1.2.0"). Defaults to the workflow default branch in Xcode Cloud.'
+  branch:
+    description: 'Optional: Branch name to build (e.g. "main", "tech/my-feature"). Defaults to the workflow default branch in Xcode Cloud.'
     required: false
     default: ''
   team_id:
@@ -92,7 +92,7 @@ runs:
 
         # Resolve git reference ID if a branch/tag was specified
         GIT_REF_RELATIONSHIP=""
-        if [ -n "${{ inputs.git_ref }}" ]; then
+        if [ -n "${{ inputs.branch }}" ]; then
           REPO_ID=$(curl -s \
             -H "$AUTH" \
             "https://api.appstoreconnect.apple.com/v1/ciWorkflows/${{ inputs.workflow_id }}/repository" \
@@ -103,15 +103,14 @@ runs:
             exit 1
           fi
 
-          REFS_RESPONSE=$(curl -s \
+          ENCODED_BRANCH=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${{ inputs.branch }}', safe=''))")
+          GIT_REF_ID=$(curl -s \
             -H "$AUTH" \
-            "https://api.appstoreconnect.apple.com/v1/scmRepositories/${REPO_ID}/gitReferences?sort=-name")
-
-          GIT_REF_ID=$(echo "$REFS_RESPONSE" \
-            | jq -r --arg name "${{ inputs.git_ref }}" '.data[] | select(.attributes.name == $name) | .id' | head -1)
+            "https://api.appstoreconnect.apple.com/v1/scmRepositories/${REPO_ID}/gitReferences?filter%5Bkind%5D=BRANCH&filter%5Bname%5D=${ENCODED_BRANCH}" \
+            | jq -r '.data[0].id // ""')
 
           if [ -z "$GIT_REF_ID" ]; then
-            echo "::error::Could not find branch or tag '${{ inputs.git_ref }}' in repository"
+            echo "::error::Could not find branch '${{ inputs.branch }}' in repository"
             exit 1
           fi
 
