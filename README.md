@@ -99,6 +99,10 @@ jobs:
    - **Native (modern):** reads `MARKETING_VERSION` from `project.pbxproj` — either auto-detected or via `project_path`
    - **Native (legacy):** if your project hardcodes the version directly in `Info.plist`, provide `info_plist_path` and the action will read `CFBundleShortVersionString` via `plutil`
 
+## Known Limitations
+
+- **Apple Rate Limit:** Apple enforces a limit of **22 builds per app per 24 hours** for TestFlight and App Store uploads. Triggering too many builds in a short window will result in rejected uploads. Plan your CI usage accordingly.
+
 ## License
 
 [MIT](LICENSE)
